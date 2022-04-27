@@ -36,6 +36,7 @@ LightSource* lights[light_count];
 
 // Misc settings
 const float error_tolerance = 0.01f;
+const int max_bounce = 3;
 
 Intersection findIntersection(glm::vec3 v, glm::vec3 v0 = glm::vec3(0)) {
 	Intersection nearest = Intersection();
@@ -53,13 +54,65 @@ Intersection findIntersection(glm::vec3 v, glm::vec3 v0 = glm::vec3(0)) {
 	return nearest;
 }
 
+Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
+	Intersection nearest = findIntersection(v, v0);
+
+	Color out_color = Color(0, 10, 40);
+
+	if (nearest.type != NONE) {
+		LightSource* illuminationLights[light_count];
+		int illuminationLightCount = 0;
+
+		for (LightSource* light : lights) {
+			glm::vec3 shadowRay = glm::normalize(light->position - nearest.point);
+			if (glm::dot(shadowRay, nearest.normal) <= 0) continue;
+
+			Intersection shadowIntersection = findIntersection(shadowRay, nearest.point);
+
+			if (shadowIntersection.omega < error_tolerance || shadowIntersection.omega == FLT_MAX) {
+				illuminationLights[illuminationLightCount] = light;
+				illuminationLightCount++;
+			}
+		}
+
+		out_color = Color(0, 0, 0);
+		for (int i = 0; i < illuminationLightCount; ++i) {
+			switch (nearest.type)
+			{
+			case SPHERE:
+				out_color = out_color + sph_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]) * illuminationLights[i]->color;
+				break;
+			case TRIANGLE:
+				out_color = out_color + tri_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]) * illuminationLights[i]->color;
+				break;
+			default:
+				break;
+			}
+		}
+
+		if (bounce_depth < max_bounce) {
+			glm::vec3 nv = nearest.reflective;
+			glm::vec3 nv0 = nearest.point;
+			out_color = out_color + illuminate(nv, nv0, bounce_depth + 1) * 0.5f;
+
+			if (nearest.type == SPHERE) {
+				//std::cout << "SPHERE";
+			}
+		}
+	}
+
+	return out_color;
+}
+
 int main() {
 
 	Image img = Image(width, height, channels);
 
 	Camera testCam = Camera(
-		glm::vec3(38.49, -4.49, 2.38),
-		glm::vec3(33.49, -4.49, 2.35),
+		//glm::vec3(38.49, -4.49, 2.38),
+		glm::vec3(33.49, -1, 2.38),
+		//glm::vec3(33.49, -4.49, 2.35),
+		glm::vec3(28.49, -1, 2.35),
 		glm::vec3(0, -1, 0)
 	);
 
@@ -93,10 +146,12 @@ int main() {
 	*/
 
 	// Initialize object data
-	sph_arr[0] = Sphere_Data{ glm::vec3(27.54, -2.88, 2.27), 1.1f };
+	//sph_arr[0] = Sphere_Data{ glm::vec3(27.54, -2.88, 2.27), 1.1f };
+	sph_arr[0] = Sphere_Data{ glm::vec3(25, -3, 3), 1.1f };
 	sph_mats[0] = new Phong(0.2f, 0.4f, 0.4f, 75.f, Color(255, 0, 0), Color(255, 255, 255));
 
-	sph_arr[1] = Sphere_Data{ glm::vec3(29.94, -4.73, 2.82), 1.1f };
+	//sph_arr[1] = Sphere_Data{ glm::vec3(29.94, -4.73, 2.82), 1.1f };
+	sph_arr[1] = Sphere_Data{ glm::vec3(25, -1, 1), 1.1f };
 	sph_mats[1] = new Phong(0.2f, 0.4f, 0.4f, 10.f, Color(0, 0, 255), Color(255, 255, 255));
 
 	tri_arr[0] = Triangle_Data{ glm::vec3(32, 0.44, 8.6), glm::vec3(-32, 0.44, 8.6), glm::vec3(32, 0.44, -8.6) };
@@ -110,7 +165,7 @@ int main() {
 	for (int i = 0; i < tri_count; ++i) { tri_arr[i] = Triangle::transform(testCam.worldToCamera, tri_arr[i]); }
 
 	// Initialize light data
-	lights[0] = new LightSource(glm::vec3(0, -100, 0), Color(255, 255, 255));
+	lights[0] = new LightSource(glm::vec3(0, -100, 0), Color(255, 255, 255) * 1.f);
 
 	for (int i = 0; i < light_count; ++i) { lights[i]->transform(testCam.worldToCamera); }
 
@@ -122,83 +177,7 @@ int main() {
 
 			glm::vec3 v = glm::normalize(glm::vec3(t_x, t_y, fov));
 
-			/*
-			for (int i = 0; i < prim_count; ++i) {
-				Intersection tmp_w = primitives[i]->intersect(v);
-
-				if (tmp_w.omega >= 0 && (tmp_w.omega < min_w.omega || min_w.omega < 0.f)) {
-					prim = primitives[i];
-					min_w = tmp_w;
-				}
-			}
-			*/
-
-			Intersection nearest = findIntersection(v);
-
-			Color out_color = Color(0, 10, 40);
-
-			if (nearest.type != NONE) {
-				LightSource* illuminationLights[light_count];
-				int illuminationLightCount = 0;
-
-				for (LightSource* light : lights) {
-					glm::vec3 shadowRay = glm::normalize(light->position - nearest.point);
-					if (glm::dot(shadowRay, nearest.normal) <= 0) continue;
-
-					Intersection shadowIntersection = findIntersection(shadowRay, nearest.point);
-
-					if (shadowIntersection.omega < error_tolerance || shadowIntersection.omega == FLT_MAX) {
-						illuminationLights[illuminationLightCount] = light;
-						illuminationLightCount++;
-					}
-				}
-
-				out_color = Color(0, 0, 0);
-				for (int i = 0; i < illuminationLightCount; ++i) {
-					switch (nearest.type)
-					{
-					case SPHERE:
-						out_color = out_color + sph_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]);
-						break;
-					case TRIANGLE:
-						out_color = out_color + tri_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]);
-						break;
-					default:
-						break;
-					}
-				}
-			}
-
-			/*
-			if (nearest.type != NONE) {
-
-				LightSource* illuminationLights[light_count];
-				int illuminationLightCount = 0;
-
-				for (LightSource* light : lights) {
-					glm::vec3 shadowRay = glm::normalize(light->position - min_w.point);
-
-					bool illuminate = true;
-					for (int i = 0; i < prim_count; ++i) {
-						Intersection tmp_w = primitives[i]->intersect(shadowRay, min_w.point);
-
-						if (tmp_w.omega > 0.01f) {
-							illuminate = false;
-							break;
-						}
-					}
-
-					if (illuminate) {
-						illuminationLights[illuminationLightCount] = light;
-						illuminationLightCount++;
-					}
-				}
-
-				min_w.lights = illuminationLights;
-				min_w.lightCount = illuminationLightCount;
-				out_color = prim->material->illuminate(min_w);
-			}
-			*/
+			Color out_color = illuminate(v, glm::vec3(0), 0);
 
 			img.setPixel(x, y, out_color);
 		}

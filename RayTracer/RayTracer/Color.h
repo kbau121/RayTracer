@@ -10,6 +10,7 @@ public:
 
 	Color operator* (float s);
 	Color operator+ (Color c);
+	Color operator* (Color c);
 
 	uint8_t r;
 	uint8_t g;

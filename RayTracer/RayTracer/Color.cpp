@@ -1,4 +1,5 @@
 #include "Color.h"
+#include <math.h>
 
 Color::Color() {
 	r = (uint8_t) 0;
@@ -18,4 +19,8 @@ Color Color::operator*(float s) {
 
 Color Color::operator+(Color c) {
 	return Color(r + c.r, g + c.g, b + c.b);
+}
+
+Color Color::operator*(Color c) {
+	return Color(r * c.r / 255, g * c.g / 255, b * c.b / 255);
 }

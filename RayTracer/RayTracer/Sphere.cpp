@@ -21,8 +21,8 @@ Intersection Sphere::intersect(glm::vec3 v, glm::vec3 v0, Sphere_Data sphere)
 	else if (w2 < 0.f) omega = w1;
 	else omega = fminf(w1, w2);
 
-	glm::vec3 point = omega * v;
-	return Intersection(omega, point, glm::normalize(point - t_center), v, SPHERE, -1);
+	glm::vec3 point = omega * v + v0;
+	return Intersection(omega, point, glm::normalize(point - sphere.center), v, SPHERE, -1);
 }
 
 Sphere_Data Sphere::transform(glm::mat4x4 m, Sphere_Data sphere) {
