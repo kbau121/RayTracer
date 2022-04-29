@@ -75,6 +75,23 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 			}
 		}
 
+		float kr = 0;
+		float kt = 0;
+		float IOR = 0;
+		switch (nearest.type)
+		{
+		case SPHERE:
+			kr = sph_mats[nearest.index]->kr;
+			kt = sph_mats[nearest.index]->kt;
+			IOR = sph_mats[nearest.index]->IOR;
+			break;
+		case TRIANGLE:
+			kr = tri_mats[nearest.index]->kr;
+			kt = tri_mats[nearest.index]->kt;
+			IOR = tri_mats[nearest.index]->IOR;
+			break;
+		}
+
 		out_color = Color(0, 0, 0);
 		for (int i = 0; i < illuminationLightCount; ++i) {
 			switch (nearest.type)
@@ -91,12 +108,30 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 		}
 
 		if (bounce_depth < max_bounce) {
-			glm::vec3 nv = nearest.reflective;
-			glm::vec3 nv0 = nearest.point;
-			out_color = out_color + illuminate(nv, nv0, bounce_depth + 1) * 0.5f;
+			if (kr > 0) {
+				out_color = out_color + illuminate(nearest.reflective, nearest.point, bounce_depth + 1) * kr;
+			}
 
-			if (nearest.type == SPHERE) {
-				//std::cout << "SPHERE";
+			if (kt > 0) {
+				float sqrt_term;
+				bool isBackFace = glm::dot(v, nearest.normal) > 0;
+
+				if (isBackFace)
+					sqrt_term = 1 - (1 - powf(glm::dot(v, nearest.normal), 2)) / pow(IOR, 2);
+				else
+					sqrt_term = 1 - (1 - powf(glm::dot(v, nearest.normal), 2)) / pow(IOR, 2);
+
+				glm::vec3 n = nearest.normal;
+				glm::vec3 t;
+
+				if (sqrt_term >= 0)
+				{
+					t = glm::normalize(((v - n * glm::dot(v, n)) / IOR) + n * sqrtf(sqrt_term));
+				}
+				else {
+					t = nearest.reflective;
+				}
+				out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1) * kt;
 			}
 		}
 	}
@@ -148,11 +183,11 @@ int main() {
 	// Initialize object data
 	//sph_arr[0] = Sphere_Data{ glm::vec3(27.54, -2.88, 2.27), 1.1f };
 	sph_arr[0] = Sphere_Data{ glm::vec3(25, -3, 3), 1.1f };
-	sph_mats[0] = new Phong(0.2f, 0.4f, 0.4f, 75.f, Color(255, 0, 0), Color(255, 255, 255));
+	sph_mats[0] = new Phong(0.2f, 0.4f, 0.4f, 75.f, 0.f, 1.0f, 1.f, Color(255, 0, 0), Color(255, 255, 255));
 
 	//sph_arr[1] = Sphere_Data{ glm::vec3(29.94, -4.73, 2.82), 1.1f };
 	sph_arr[1] = Sphere_Data{ glm::vec3(25, -1, 1), 1.1f };
-	sph_mats[1] = new Phong(0.2f, 0.4f, 0.4f, 10.f, Color(0, 0, 255), Color(255, 255, 255));
+	sph_mats[1] = new Phong(0.2f, 0.4f, 0.4f, 10.f, 1.f, 0.0f, 0.0f, Color(0, 0, 255), Color(255, 255, 255));
 
 	tri_arr[0] = Triangle_Data{ glm::vec3(32, 0.44, 8.6), glm::vec3(-32, 0.44, 8.6), glm::vec3(32, 0.44, -8.6) };
 	tri_mats[0] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));

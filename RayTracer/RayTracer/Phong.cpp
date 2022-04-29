@@ -9,11 +9,14 @@ Phong::Phong() {
 	specular = Color(255, 255, 255);
 }
 
-Phong::Phong(float _ka, float _kd, float _ks, float _ke, Color _diffuse, Color _specular) {
+Phong::Phong(float _ka, float _kd, float _ks, float _ke, float _kr, float _kt, float _IOR, Color _diffuse, Color _specular) {
 	ka =_ka;
 	kd = _kd;
 	ks = _ks;
 	ke = _ke;
+	kr = _kr;
+	kt = _kt;
+	IOR = _IOR;
 	diffuse = _diffuse;
 	specular = _specular;
 }
