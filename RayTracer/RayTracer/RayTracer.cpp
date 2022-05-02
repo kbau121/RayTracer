@@ -12,12 +12,13 @@
 
 #include "Phong.h"
 #include "CheckerBoard.h"
+#include <time.h>
 
 using namespace std;
 
 // Object data
 const int tri_count = 2;
-const int sph_count = 2;
+const int sph_count = 3;
 
 Triangle_Data tri_arr[tri_count];
 Sphere_Data sph_arr[sph_count];
@@ -38,7 +39,12 @@ LightSource* lights[light_count];
 
 // Misc settings
 const float error_tolerance = 0.01f;
-const int max_bounce = 3;
+const int max_bounce = 10;
+
+glm::vec3 randDirection() {
+	glm::vec3 random = glm::normalize(glm::vec3(rand(), rand(), rand())) - 0.5f;
+	return glm::normalize(random);
+}
 
 Intersection findIntersection(glm::vec3 v, glm::vec3 v0 = glm::vec3(0)) {
 	Intersection nearest = Intersection();
@@ -56,7 +62,7 @@ Intersection findIntersection(glm::vec3 v, glm::vec3 v0 = glm::vec3(0)) {
 	return nearest;
 }
 
-Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
+Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = false) {
 	Intersection nearest = findIntersection(v, v0);
 
 	Color out_color = Color(0, 10, 40) * 50;
@@ -81,17 +87,20 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 		float kr = 0;
 		float kt = 0;
 		float IOR = 1.f;
+		float i_density = 0.f;
 		switch (nearest.type)
 		{
 		case SPHERE:
 			kr = sph_mats[nearest.index]->kr;
 			kt = sph_mats[nearest.index]->kt;
 			IOR = sph_mats[nearest.index]->IOR;
+			i_density = sph_mats[nearest.index]->i_density;
 			break;
 		case TRIANGLE:
 			kr = tri_mats[nearest.index]->kr;
 			kt = tri_mats[nearest.index]->kt;
 			IOR = tri_mats[nearest.index]->IOR;
+			i_density = tri_mats[nearest.index]->i_density;
 			break;
 		}
 
@@ -140,7 +149,19 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 					t = IOR * v + (IOR * cosI - cosT) * n;
 				}
 
-				out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1) * kt;
+				if (i_density > 0) {
+					if (volume) {
+						float dist2 = powf(glm::length(v0 - nearest.point), 2);
+						out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1, true) + Color(255, 255, 255) * dist2;
+					}
+					else
+					{
+						out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1, true);
+					}
+				}
+				else {
+					out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1) * kt;
+				}
 			}
 		}
 	}
@@ -149,7 +170,6 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 }
 
 int main() {
-
 	Image img = Image(width, height, channels);
 
 	Camera testCam = Camera(
@@ -192,11 +212,14 @@ int main() {
 	// Initialize object data
 	//sph_arr[0] = Sphere_Data{ glm::vec3(27.54, -2.88, 2.27), 1.1f };
 	sph_arr[0] = Sphere_Data{ glm::vec3(25, -0.75, 3.5f), 1.1f };
-	sph_mats[0] = new Phong(0.1f, 0.f, 0.6f, 75.f, 0.f, 1.f, 0.8f, Color(255, 255, 255), Color(255, 255, 255));
+	sph_mats[0] = new Phong(0.1f, 0.f, 0.6f, 75.f, 0.f, 1.f, 0.8f, 0.f, Color(255, 255, 255), Color(255, 255, 255));
 
 	//sph_arr[1] = Sphere_Data{ glm::vec3(29.94, -4.73, 2.82), 1.1f };
 	sph_arr[1] = Sphere_Data{ glm::vec3(25, -1, 1), 1.1f };
-	sph_mats[1] = new Phong(0.1f, 0.f, 0.6f, 10.f, 1.f, 0.0f, 0.0f, Color(255, 255, 255), Color(255, 255, 255));
+	sph_mats[1] = new Phong(0.1f, 0.f, 0.6f, 10.f, 1.f, 0.0f, 0.0f, 0.f, Color(255, 255, 255), Color(255, 255, 255));
+
+	sph_arr[2] = Sphere_Data{ glm::vec3(25, -1, 5.9f), 1.1f };
+	sph_mats[2] = new Phong(0.f, 0.f, 0.f, 0.f, 0.f, 1.f, 1.f, 0.1f, Color(255, 255, 255), Color(255, 255, 255));
 
 	tri_arr[0] = Triangle_Data{ glm::vec3(32, 0.44, 8.6), glm::vec3(-32, 0.44, 8.6), glm::vec3(32, 0.44, -8.6) };
 	tri_mats[0] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
@@ -205,7 +228,7 @@ int main() {
 	tri_mats[1] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
 
 	// Apply world to camera transform
-	for (int i = 0; i < sph_count; ++i) { sph_arr[i] = Sphere::transform(testCam.worldToCamera, sph_arr[i]);  }
+	for (int i = 0; i < sph_count; ++i) { sph_arr[i] = Sphere::transform(testCam.worldToCamera, sph_arr[i]);   }
 	for (int i = 0; i < tri_count; ++i) { tri_arr[i] = Triangle::transform(testCam.worldToCamera, tri_arr[i]); }
 
 	// Initialize light data

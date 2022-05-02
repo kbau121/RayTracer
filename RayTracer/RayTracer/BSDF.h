@@ -11,5 +11,6 @@ public:
 	float kr = 0;
 	float kt = 0;
 	float IOR = 1.f;
+	float i_density = 0;
 };
 
