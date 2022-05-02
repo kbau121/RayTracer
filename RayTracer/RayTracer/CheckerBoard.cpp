@@ -39,4 +39,5 @@ Color CheckerBoard::illuminate(Intersection intersection, LightSource light) {
 		diffuse = diffuse + col * SN;
 
 	return diffuse;
+	//return Color((int)(intersection.point.x * 255), (int)(intersection.point.y * 255), (int)(intersection.point.z * 255));
 }

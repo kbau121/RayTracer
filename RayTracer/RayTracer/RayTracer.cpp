@@ -29,6 +29,8 @@ BSDF* sph_mats[sph_count];
 // Camera data
 const int width = 1280, height = 720, max_dim = std::max(width, height), channels = 3;
 const float fov = 1.25f;
+//const int width = 128, height = 128, max_dim = std::max(width, height), channels = 3;
+//const float fov = 13.5f;
 
 // Light data
 const int light_count = 1;
@@ -69,7 +71,8 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 
 			Intersection shadowIntersection = findIntersection(shadowRay, nearest.point);
 
-			if (shadowIntersection.omega < error_tolerance || shadowIntersection.omega == FLT_MAX) {
+			//if (shadowIntersection.omega < error_tolerance || shadowIntersection.omega == FLT_MAX) {
+			if (shadowIntersection.omega == FLT_MAX) {
 				illuminationLights[illuminationLightCount] = light;
 				illuminationLightCount++;
 			}
@@ -77,7 +80,7 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 
 		float kr = 0;
 		float kt = 0;
-		float IOR = 0;
+		float IOR = 1.f;
 		switch (nearest.type)
 		{
 		case SPHERE:
@@ -113,24 +116,30 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 			}
 
 			if (kt > 0) {
-				float sqrt_term;
-				bool isBackFace = glm::dot(v, nearest.normal) > 0;
-
-				if (isBackFace)
-					sqrt_term = 1 - (1 - powf(glm::dot(v, nearest.normal), 2)) / pow(IOR, 2);
-				else
-					sqrt_term = 1 - (1 - powf(glm::dot(v, nearest.normal), 2)) / pow(IOR, 2);
-
-				glm::vec3 n = nearest.normal;
+				glm::vec3 n;
 				glm::vec3 t;
 
-				if (sqrt_term >= 0)
+				if (glm::dot(nearest.normal, v) > 0.f)
 				{
-					t = glm::normalize(((v - n * glm::dot(v, n)) / IOR) + n * sqrtf(sqrt_term));
+					n = -nearest.normal;
 				}
 				else {
+					n = nearest.normal;
+					IOR = 1.f / IOR;
+				}
+
+				float cosI = -glm::dot(n, v);
+				float sinT2 = IOR * IOR * (1.f - cosI * cosI);
+
+				if (sinT2 > 1.f)
+				{
 					t = nearest.reflective;
 				}
+				else {
+					float cosT = sqrtf(1.f - sinT2);
+					t = IOR * v + (IOR * cosI - cosT) * n;
+				}
+
 				out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1) * kt;
 			}
 		}
@@ -145,7 +154,7 @@ int main() {
 
 	Camera testCam = Camera(
 		//glm::vec3(38.49, -4.49, 2.38),
-		glm::vec3(33.49, -1, 2.38),
+		glm::vec3(33.49, -1.5, 2.38),
 		//glm::vec3(33.49, -4.49, 2.35),
 		glm::vec3(28.49, -1, 2.35),
 		glm::vec3(0, -1, 0)
@@ -182,12 +191,12 @@ int main() {
 
 	// Initialize object data
 	//sph_arr[0] = Sphere_Data{ glm::vec3(27.54, -2.88, 2.27), 1.1f };
-	sph_arr[0] = Sphere_Data{ glm::vec3(25, -3, 3), 1.1f };
-	sph_mats[0] = new Phong(0.2f, 0.4f, 0.4f, 75.f, 0.f, 1.0f, 1.f, Color(255, 0, 0), Color(255, 255, 255));
+	sph_arr[0] = Sphere_Data{ glm::vec3(25, -0.75, 3.5f), 1.1f };
+	sph_mats[0] = new Phong(0.1f, 0.f, 0.6f, 75.f, 0.f, 1.f, 0.8f, Color(255, 255, 255), Color(255, 255, 255));
 
 	//sph_arr[1] = Sphere_Data{ glm::vec3(29.94, -4.73, 2.82), 1.1f };
 	sph_arr[1] = Sphere_Data{ glm::vec3(25, -1, 1), 1.1f };
-	sph_mats[1] = new Phong(0.2f, 0.4f, 0.4f, 10.f, 1.f, 0.0f, 0.0f, Color(0, 0, 255), Color(255, 255, 255));
+	sph_mats[1] = new Phong(0.1f, 0.f, 0.6f, 10.f, 1.f, 0.0f, 0.0f, Color(255, 255, 255), Color(255, 255, 255));
 
 	tri_arr[0] = Triangle_Data{ glm::vec3(32, 0.44, 8.6), glm::vec3(-32, 0.44, 8.6), glm::vec3(32, 0.44, -8.6) };
 	tri_mats[0] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));

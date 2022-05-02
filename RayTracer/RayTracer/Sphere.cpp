@@ -3,10 +3,8 @@
 
 Intersection Sphere::intersect(glm::vec3 v, glm::vec3 v0, Sphere_Data sphere)
 {
-	glm::vec3 t_center = sphere.center - v0;
-
-	float B = 2 * glm::dot(v, -t_center);
-	float C = glm::dot(t_center, t_center) - powf(sphere.radius, 2);
+	float B = 2 * (v.x * (v0.x - sphere.center.x) + v.y * (v0.y - sphere.center.y) + v.z * (v0.z - sphere.center.z));
+	float C = powf(v0.x - sphere.center.x, 2) + powf(v0.y - sphere.center.y, 2) + powf(v0.z - sphere.center.z, 2) - powf(sphere.radius, 2);
 
 	float t = powf(B, 2) - 4 * C;
 
