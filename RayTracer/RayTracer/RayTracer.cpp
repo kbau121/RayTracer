@@ -59,7 +59,7 @@ Intersection findIntersection(glm::vec3 v, glm::vec3 v0 = glm::vec3(0)) {
 Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth) {
 	Intersection nearest = findIntersection(v, v0);
 
-	Color out_color = Color(0, 10, 40);
+	Color out_color = Color(0, 10, 40) * 50;
 
 	if (nearest.type != NONE) {
 		LightSource* illuminationLights[light_count];
@@ -209,7 +209,7 @@ int main() {
 	for (int i = 0; i < tri_count; ++i) { tri_arr[i] = Triangle::transform(testCam.worldToCamera, tri_arr[i]); }
 
 	// Initialize light data
-	lights[0] = new LightSource(glm::vec3(0, -100, 0), Color(255, 255, 255) * 1.f);
+	lights[0] = new LightSource(glm::vec3(0, -100, 0), Color(255, 255, 255) * 20.f);
 
 	for (int i = 0; i < light_count; ++i) { lights[i]->transform(testCam.worldToCamera); }
 

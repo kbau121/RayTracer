@@ -2,19 +2,19 @@
 #include <math.h>
 
 Color::Color() {
-	r = (uint8_t) 0;
-	g = (uint8_t) 0;
-	b = (uint8_t) 0;
+	r = 0;
+	g = 0;
+	b = 0;
 }
 
-Color::Color(uint8_t n_r, uint8_t n_g, uint8_t n_b) {
+Color::Color(int n_r, int n_g, int n_b) {
 	r = n_r;
 	g = n_g;
 	b = n_b;
 }
 
 Color Color::operator*(float s) {
-	return Color((uint8_t)(r * s), (uint8_t)(g * s), (uint8_t)(b * s));
+	return Color((int)(r * s), (int)(g * s), (int)(b * s));
 }
 
 Color Color::operator+(Color c) {

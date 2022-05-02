@@ -9,16 +9,28 @@ public:
 
 	void setPixel(int x, int y, Color c);
 
-	unsigned char* getBuffer();
+	int* getBuffer();
 	int getWidth();
 	int getHeight();
 	int getChannels();
+	Color getColor(int x, int y);
 
 	void save(const char* filename);
 
 private:
-	unsigned char* buffer;
+	int* buffer;
+	char* final_buffer;
 	int width;
 	int height;
 	int channels;
+
+	Color getColor(int i);
+
+	float px_illuminance(int x, int y);
+	float px_illuminance(int i);
+	float max_illuminance();
+	float log_avg_illuminance();
+
+	void ward_operator(float Ldmax);
+	void reinhard_model(float Ldmax);
 };
