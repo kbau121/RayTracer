@@ -33,4 +33,5 @@ private:
 
 	void ward_operator(float Ldmax);
 	void reinhard_model(float Ldmax);
+	void adaptive_logarithmic(float Ldmax, float b);
 };

@@ -55,7 +55,9 @@ void Image::save(const char* filename) {
 	//ward_operator(0.1f);
 
 	//10, 5, 1
-	reinhard_model(5);
+	//reinhard_model(5);
+
+	adaptive_logarithmic(10.f, 0.85f);
 
 	stbi_write_png(filename, width, height, channels, final_buffer, width * channels);
 }
@@ -117,6 +119,28 @@ void Image::reinhard_model(float Ldmax) {
 
 		//float in_col = buffer[i];
 		//float out_col = 255.f * in_col / (255.f + in_col);
+
+		final_buffer[i] = (char)fmaxf(fminf(out_col, 255.f), 0.f);
+	}
+}
+
+void Image::adaptive_logarithmic(float Ldmax, float b) {
+	float Lwa = log_avg_illuminance();
+
+	float Lwmax = 0.f;
+	for (int x = 0; x < width; ++x) {
+		for (int y = 0; y < height; ++y) {
+			Lwmax = fmaxf(px_illuminance(x, y), Lwmax);
+		}
+	}
+	Lwmax /= Lwa;
+
+	for (int i = 0; i < width * height * channels; ++i) {
+		float Lw = px_illuminance(i) / Lwa;
+		float Ld = (1.f / log10f(Lwmax + 1.f)) * logf(Lw + 1.f) / logf(2.f + 8.f * powf(Lw / Lwmax, logf(b) / logf(0.5f)));
+
+		int in_col = buffer[i];
+		float out_col = in_col * Ld / Ldmax;
 
 		final_buffer[i] = (char)fmaxf(fminf(out_col, 255.f), 0.f);
 	}
