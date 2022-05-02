@@ -125,6 +125,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BRDFRead.cpp" />
     <ClCompile Include="BSDF.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CheckerBoard.cpp" />
@@ -139,10 +140,12 @@
     <ClCompile Include="Triangle.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BRDFRead.h" />
     <ClInclude Include="BSDF.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CheckerBoard.h" />
     <ClInclude Include="Color.h" />
+    <ClInclude Include="happly.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="Intersection.h" />
     <ClInclude Include="LightSource.h" />

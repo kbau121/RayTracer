@@ -1,9 +1,14 @@
+#define _USE_MATH_DEFINES
+
 #include "RayTracer.h"
 #include "Image.h"
 #include <cstdlib>
 #include <algorithm>
 #include <iostream>
 #include <glm/glm.hpp>
+#include "happly.h"
+#include "BRDFRead.h"
+#include <math.h>
 
 #include "Camera.h"
 
@@ -12,26 +17,27 @@
 
 #include "Phong.h"
 #include "CheckerBoard.h"
-#include <time.h>
 
 using namespace std;
 
 // Object data
-const int tri_count = 2;
-const int sph_count = 3;
+int tri_count = 2;
+const int sph_count = 4;
 
-Triangle_Data tri_arr[tri_count];
+Triangle_Data * tri_arr;
 Sphere_Data sph_arr[sph_count];
 
 // Material data
-BSDF* tri_mats[tri_count];
+BSDF ** tri_mats;
 BSDF* sph_mats[sph_count];
+double* _brdf;
+BRDFRead reader = BRDFRead();
 
 // Camera data
 const int width = 1280, height = 720, max_dim = std::max(width, height), channels = 3;
 const float fov = 1.25f;
 //const int width = 128, height = 128, max_dim = std::max(width, height), channels = 3;
-//const float fov = 13.5f;
+//const float fov = 1.25f;
 
 // Light data
 const int light_count = 1;
@@ -40,6 +46,10 @@ LightSource* lights[light_count];
 // Misc settings
 const float error_tolerance = 0.01f;
 const int max_bounce = 10;
+
+glm::vec3 rectToSph(glm::vec3 v) {
+	return glm::vec3(1, atanf(v.y / v.x), acos(v.z));
+}
 
 glm::vec3 randDirection() {
 	glm::vec3 random = glm::normalize(glm::vec3(rand(), rand(), rand())) - 0.5f;
@@ -88,19 +98,30 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 		float kt = 0;
 		float IOR = 1.f;
 		float i_density = 0.f;
+		double* brdf = nullptr;
 		switch (nearest.type)
 		{
 		case SPHERE:
-			kr = sph_mats[nearest.index]->kr;
-			kt = sph_mats[nearest.index]->kt;
-			IOR = sph_mats[nearest.index]->IOR;
-			i_density = sph_mats[nearest.index]->i_density;
+			if (sph_mats[nearest.index]) {
+				kr = sph_mats[nearest.index]->kr;
+				kt = sph_mats[nearest.index]->kt;
+				IOR = sph_mats[nearest.index]->IOR;
+				i_density = sph_mats[nearest.index]->i_density;
+			}
+			else {
+				brdf = _brdf;
+			}
 			break;
 		case TRIANGLE:
-			kr = tri_mats[nearest.index]->kr;
-			kt = tri_mats[nearest.index]->kt;
-			IOR = tri_mats[nearest.index]->IOR;
-			i_density = tri_mats[nearest.index]->i_density;
+			if (tri_mats[nearest.index]) {
+				kr = tri_mats[nearest.index]->kr;
+				kt = tri_mats[nearest.index]->kt;
+				IOR = tri_mats[nearest.index]->IOR;
+				i_density = tri_mats[nearest.index]->i_density;
+			}
+			else {
+				brdf = _brdf;
+			}
 			break;
 		}
 
@@ -109,10 +130,12 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 			switch (nearest.type)
 			{
 			case SPHERE:
-				out_color = out_color + sph_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]) * illuminationLights[i]->color;
+				if (sph_mats[nearest.index])
+					out_color = out_color + sph_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]) * illuminationLights[i]->color;
 				break;
 			case TRIANGLE:
-				out_color = out_color + tri_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]) * illuminationLights[i]->color;
+				if (tri_mats[nearest.index])
+					out_color = out_color + tri_mats[nearest.index]->illuminate(nearest, *illuminationLights[i]) * illuminationLights[i]->color;
 				break;
 			default:
 				break;
@@ -120,48 +143,75 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 		}
 
 		if (bounce_depth < max_bounce) {
-			if (kr > 0) {
-				out_color = out_color + illuminate(nearest.reflective, nearest.point, bounce_depth + 1) * kr;
-			}
-
-			if (kt > 0) {
-				glm::vec3 n;
-				glm::vec3 t;
-
-				if (glm::dot(nearest.normal, v) > 0.f)
-				{
-					n = -nearest.normal;
-				}
-				else {
-					n = nearest.normal;
-					IOR = 1.f / IOR;
+			if (!brdf) {
+				if (kr > 0) {
+					out_color = out_color + illuminate(nearest.reflective, nearest.point, bounce_depth + 1) * kr;
 				}
 
-				float cosI = -glm::dot(n, v);
-				float sinT2 = IOR * IOR * (1.f - cosI * cosI);
+				if (kt > 0) {
+					glm::vec3 n;
+					glm::vec3 t;
 
-				if (sinT2 > 1.f)
-				{
-					t = nearest.reflective;
-				}
-				else {
-					float cosT = sqrtf(1.f - sinT2);
-					t = IOR * v + (IOR * cosI - cosT) * n;
-				}
-
-				if (i_density > 0) {
-					if (volume) {
-						float dist2 = powf(glm::length(v0 - nearest.point), 2);
-						out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1, true) + Color(255, 255, 255) * dist2;
-					}
-					else
+					if (glm::dot(nearest.normal, v) > 0.f)
 					{
-						out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1, true);
+						n = -nearest.normal;
+					}
+					else {
+						n = nearest.normal;
+						IOR = 1.f / IOR;
+					}
+
+					float cosI = -glm::dot(n, v);
+					float sinT2 = IOR * IOR * (1.f - cosI * cosI);
+
+					if (sinT2 > 1.f)
+					{
+						t = nearest.reflective;
+					}
+					else {
+						float cosT = sqrtf(1.f - sinT2);
+						t = IOR * v + (IOR * cosI - cosT) * n;
+					}
+
+					if (i_density > 0) {
+						if (volume) {
+							float dist2 = powf(glm::length(v0 - nearest.point), 2);
+							out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1, true) + Color(255, 255, 255) * dist2;
+						}
+						else
+						{
+							out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1, true);
+						}
+					}
+					else {
+						out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1) * kt;
 					}
 				}
-				else {
-					out_color = out_color + illuminate(t, nearest.point, bounce_depth + 1) * kt;
+			}
+			else {
+				glm::vec3 incoming = rectToSph(v);
+				glm::vec3 p_outgoing = rectToSph(nearest.reflective);
+
+				glm::vec3 summation = glm::vec3(0);
+				int p_res = 1;
+				int t_res = 1;
+				for (float p = 0; p <= M_PI_2 - M_PI_2 / p_res; p += M_PI_2 / p_res) {
+					for (float t = -M_PI; t <= M_PI - M_PI * 2 / t_res; t += M_PI * 2 / t_res) {
+						glm::vec3 out_vector = nearest.reflective;
+						glm::vec3 outgoing = rectToSph(out_vector);
+
+						double red, green, blue;
+						reader.lookup_brdf_val(brdf, incoming.y, incoming.z, outgoing.y, outgoing.z, red, green, blue);
+
+						float vn = fmaxf(glm::dot(out_vector, nearest.normal), 0.f);
+						Color in_color = illuminate(out_vector, nearest.point, bounce_depth + 1);
+
+						summation = summation + glm::vec3(in_color.r * vn / red, in_color.g * vn / green, in_color.b * vn / blue) * 0.005f;
+					}
 				}
+
+				summation *= 1 / (p_res * t_res);
+				out_color = out_color + Color(summation.x, summation.y, summation.z);
 			}
 		}
 	}
@@ -169,14 +219,65 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 	return out_color;
 }
 
+void genPly(const char* filename) {
+	happly::PLYData plyIn(filename);
+
+	std::vector<std::array<double, 3>> vPos = plyIn.getVertexPositions();
+	std::vector<std::vector<size_t>> fInd = plyIn.getFaceIndices<size_t>();
+
+	size_t tmp_size = fInd.size();
+
+	Triangle_Data* tmp_arr = (Triangle_Data*)realloc(tri_arr, (tri_count + tmp_size) * sizeof(Triangle_Data));
+	BSDF ** tmp_mats = (BSDF**)realloc(tri_mats, (tri_count + tmp_size) * sizeof(BSDF*));
+
+	if (tmp_arr && tmp_mats) {
+		tri_arr = tmp_arr;
+		tri_mats = tmp_mats;
+	} else return;
+
+	Phong* default_mat = new Phong(0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, Color(125, 125, 125), Color(0, 0, 0));
+
+	for (unsigned int i = 0; i < tmp_size; ++i) {
+
+		std::array <double, 3> v0 = vPos[fInd[i][0]];
+		std::array <double, 3> v1 = vPos[fInd[i][1]];
+		std::array <double, 3> v2 = vPos[fInd[i][2]];
+
+		glm::vec3 p0 = glm::vec3(v0[0], v0[1], v0[2]);
+		glm::vec3 p1 = glm::vec3(v1[0], v1[1], v1[2]);
+		glm::vec3 p2 = glm::vec3(v2[0], v2[1], v2[2]);
+
+		tri_arr[tri_count + i] = Triangle_Data{ p0, p1, p2 };
+		tri_mats[tri_count + i] = default_mat;
+	}
+	tri_count += tmp_size;
+}
+
 int main() {
+	reader.read_brdf("brdfs/gold-metallic-paint.binary", _brdf);
+
+	glm::vec3 sph_in = rectToSph(glm::normalize(glm::vec3(1, 1, 1)));
+	glm::vec3 sph_out = rectToSph(glm::normalize(glm::vec3(1, 1, 1)));
+	double red, green, blue;
+	reader.lookup_brdf_val(_brdf, sph_in.y, sph_in.z, sph_out.y, sph_out.z, red, green, blue);
+	cout << red << ", " << green << ", " << blue << endl;
+
+	tri_arr = (Triangle_Data*)malloc(tri_count * sizeof(Triangle_Data));
+	tri_mats = (BSDF**)malloc(tri_count * sizeof(BSDF*));
+
+	//genPly("bunny/reconstruction/bun_zipper_res4.ply");
+
 	Image img = Image(width, height, channels);
 
 	Camera testCam = Camera(
 		//glm::vec3(38.49, -4.49, 2.38),
 		glm::vec3(33.49, -1.5, 2.38),
+		//glm::vec3(0, 0.f, -0.2f),
+
 		//glm::vec3(33.49, -4.49, 2.35),
 		glm::vec3(28.49, -1, 2.35),
+		//glm::vec3(0, 0.1f, 0),
+
 		glm::vec3(0, -1, 0)
 	);
 
@@ -221,11 +322,14 @@ int main() {
 	sph_arr[2] = Sphere_Data{ glm::vec3(25, -1, 5.9f), 1.1f };
 	sph_mats[2] = new Phong(0.f, 0.f, 0.f, 0.f, 0.f, 1.f, 1.f, 0.1f, Color(255, 255, 255), Color(255, 255, 255));
 
+	sph_arr[3] = Sphere_Data{ glm::vec3(25, -1, -1.5f), 1.1f };
+	sph_mats[3] = nullptr;
+
 	tri_arr[0] = Triangle_Data{ glm::vec3(32, 0.44, 8.6), glm::vec3(-32, 0.44, 8.6), glm::vec3(32, 0.44, -8.6) };
-	tri_mats[0] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
+	tri_mats[0] = (BSDF*)new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
 
 	tri_arr[1] = Triangle_Data{ glm::vec3(-32, 0.44, -8.6), glm::vec3(32, 0.44, -8.6), glm::vec3(-32, 0.44, 8.6) };
-	tri_mats[1] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
+	tri_mats[1] = (BSDF*)new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
 
 	// Apply world to camera transform
 	for (int i = 0; i < sph_count; ++i) { sph_arr[i] = Sphere::transform(testCam.worldToCamera, sph_arr[i]);   }
@@ -238,6 +342,7 @@ int main() {
 
 	// Main loop
 	for (int x = 0; x < width; ++x) {
+		cout << ((float)x) / (width) << endl;
 		for (int y = 0; y < height; ++y) {
 			float t_x = (x - width / 2.f) / (max_dim / 2);
 			float t_y = -(y - height / 2.f) / (max_dim / 2);
