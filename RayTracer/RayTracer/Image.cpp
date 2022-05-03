@@ -51,10 +51,10 @@ Color Image::getColor(int i) {
 }
 
 void Image::save(const char* filename) {
-	// 1, 0.1f, 0.01f
+	// 1, 0.1f, 0.05f
 	//ward_operator(0.1f);
 
-	//10, 5, 1
+	//10, 5, 2.5f
 	//reinhard_model(5);
 
 	adaptive_logarithmic(10.f, 0.85f);

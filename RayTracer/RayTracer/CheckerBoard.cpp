@@ -26,8 +26,9 @@ Color CheckerBoard::illuminate(Intersection intersection, LightSource light) {
 
 	int dr = abs((int)(start.x / row_size)) % 2; if (!dr) dr = -1;
 	int dc = abs((int)(start.y / col_size)) % 2; if (!dc) dc = -1;
+	int sign = signbit(start.x * start.y); if (!sign) sign = -1;
 
-	if (dr * dc == 1) {
+	if (dr * dc * sign == 1) {
 		col = c2;
 	}
 

@@ -21,15 +21,15 @@
 using namespace std;
 
 // Object data
-int tri_count = 2;
+const int tri_count = 2;
 const int sph_count = 4;
 
-Triangle_Data * tri_arr;
+Triangle_Data tri_arr[tri_count];
 Sphere_Data sph_arr[sph_count];
 
 // Material data
-BSDF ** tri_mats;
-BSDF* sph_mats[sph_count];
+BSDF* tri_mats[tri_count];
+BSDF* sph_mats[sph_count + 2];
 double* _brdf;
 BRDFRead reader = BRDFRead();
 
@@ -195,8 +195,8 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 				glm::vec3 summation = glm::vec3(0);
 				int p_res = 1;
 				int t_res = 1;
-				for (float p = 0; p <= M_PI_2 - M_PI_2 / p_res; p += M_PI_2 / p_res) {
-					for (float t = -M_PI; t <= M_PI - M_PI * 2 / t_res; t += M_PI * 2 / t_res) {
+				for (double p = 0; p <= M_PI_2 - M_PI_2 / p_res; p += M_PI_2 / p_res) {
+					for (double t = -M_PI; t <= M_PI - M_PI * 2 / t_res; t += M_PI * 2 / t_res) {
 						glm::vec3 out_vector = nearest.reflective;
 						glm::vec3 outgoing = rectToSph(out_vector);
 
@@ -206,12 +206,12 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 						float vn = fmaxf(glm::dot(out_vector, nearest.normal), 0.f);
 						Color in_color = illuminate(out_vector, nearest.point, bounce_depth + 1);
 
-						summation = summation + glm::vec3(in_color.r * vn / red, in_color.g * vn / green, in_color.b * vn / blue) * 0.005f;
+						summation = summation + glm::vec3(((float)in_color.r) * vn / red, ((float)in_color.g) * vn / green, ((float)in_color.b) * vn / blue) * 0.005f;
 					}
 				}
 
 				summation *= 1 / (p_res * t_res);
-				out_color = out_color + Color(summation.x, summation.y, summation.z);
+				out_color = out_color + Color((int)summation.x, (int)summation.y, (int)summation.z);
 			}
 		}
 	}
@@ -219,117 +219,39 @@ Color illuminate(glm::vec3 v, glm::vec3 v0, int bounce_depth, bool volume = fals
 	return out_color;
 }
 
-void genPly(const char* filename) {
-	happly::PLYData plyIn(filename);
-
-	std::vector<std::array<double, 3>> vPos = plyIn.getVertexPositions();
-	std::vector<std::vector<size_t>> fInd = plyIn.getFaceIndices<size_t>();
-
-	size_t tmp_size = fInd.size();
-
-	Triangle_Data* tmp_arr = (Triangle_Data*)realloc(tri_arr, (tri_count + tmp_size) * sizeof(Triangle_Data));
-	BSDF ** tmp_mats = (BSDF**)realloc(tri_mats, (tri_count + tmp_size) * sizeof(BSDF*));
-
-	if (tmp_arr && tmp_mats) {
-		tri_arr = tmp_arr;
-		tri_mats = tmp_mats;
-	} else return;
-
-	Phong* default_mat = new Phong(0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, Color(125, 125, 125), Color(0, 0, 0));
-
-	for (unsigned int i = 0; i < tmp_size; ++i) {
-
-		std::array <double, 3> v0 = vPos[fInd[i][0]];
-		std::array <double, 3> v1 = vPos[fInd[i][1]];
-		std::array <double, 3> v2 = vPos[fInd[i][2]];
-
-		glm::vec3 p0 = glm::vec3(v0[0], v0[1], v0[2]);
-		glm::vec3 p1 = glm::vec3(v1[0], v1[1], v1[2]);
-		glm::vec3 p2 = glm::vec3(v2[0], v2[1], v2[2]);
-
-		tri_arr[tri_count + i] = Triangle_Data{ p0, p1, p2 };
-		tri_mats[tri_count + i] = default_mat;
-	}
-	tri_count += tmp_size;
-}
-
 int main() {
 	reader.read_brdf("brdfs/gold-metallic-paint.binary", _brdf);
-
-	glm::vec3 sph_in = rectToSph(glm::normalize(glm::vec3(1, 1, 1)));
-	glm::vec3 sph_out = rectToSph(glm::normalize(glm::vec3(1, 1, 1)));
-	double red, green, blue;
-	reader.lookup_brdf_val(_brdf, sph_in.y, sph_in.z, sph_out.y, sph_out.z, red, green, blue);
-	cout << red << ", " << green << ", " << blue << endl;
-
-	tri_arr = (Triangle_Data*)malloc(tri_count * sizeof(Triangle_Data));
-	tri_mats = (BSDF**)malloc(tri_count * sizeof(BSDF*));
-
-	//genPly("bunny/reconstruction/bun_zipper_res4.ply");
 
 	Image img = Image(width, height, channels);
 
 	Camera testCam = Camera(
-		//glm::vec3(38.49, -4.49, 2.38),
 		glm::vec3(33.49, -1.5, 2.38),
-		//glm::vec3(0, 0.f, -0.2f),
-
-		//glm::vec3(33.49, -4.49, 2.35),
 		glm::vec3(28.49, -1, 2.35),
-		//glm::vec3(0, 0.1f, 0),
-
 		glm::vec3(0, -1, 0)
 	);
 
-	/*
-	{
-		A* a = new A(1, 2, "3");
-		std::unique_ptr<A> a = std::make_unique<A>(1, 2, "3");
-		std::shared_ptr<A> a = std::make_shared<A>(1, 2, "3");
-
-		a->b();
-		A& a2 = *a;
-		A* a3 = a.get();
-
-		void test(std::unique_ptr<A> a) {
-		}
-		test(a);  // IDK, won't compile? Might move a into test() and your a is nullptr now?
-		test(std::move(a));  // Your a is definitely nullptr now. Still might not compile!
-
-		void test2(std::unique_ptr<A>& a) {
-		}
-		test2(a);  // Everything is great!
-
-		void test3(A& a) {
-			a.b();
-			// NOT THIS: a->b();
-		}
-		test3(*a);  // Also acceptable if you don't want std::unique_ptr<...> in function signature.
-
-
-	}
-	*/
-
 	// Initialize object data
-	//sph_arr[0] = Sphere_Data{ glm::vec3(27.54, -2.88, 2.27), 1.1f };
-	sph_arr[0] = Sphere_Data{ glm::vec3(25, -0.75, 3.5f), 1.1f };
+	// Refractive Sphere
+	sph_arr[0] = Sphere_Data{ glm::vec3(27, -1.5f, 3.f), 1.1f };
 	sph_mats[0] = new Phong(0.1f, 0.f, 0.6f, 75.f, 0.f, 1.f, 0.8f, 0.f, Color(255, 255, 255), Color(255, 255, 255));
 
-	//sph_arr[1] = Sphere_Data{ glm::vec3(29.94, -4.73, 2.82), 1.1f };
+	// Reflective Sphere
 	sph_arr[1] = Sphere_Data{ glm::vec3(25, -1, 1), 1.1f };
 	sph_mats[1] = new Phong(0.1f, 0.f, 0.6f, 10.f, 1.f, 0.0f, 0.0f, 0.f, Color(255, 255, 255), Color(255, 255, 255));
 
-	sph_arr[2] = Sphere_Data{ glm::vec3(25, -1, 5.9f), 1.1f };
-	sph_mats[2] = new Phong(0.f, 0.f, 0.f, 0.f, 0.f, 1.f, 1.f, 0.1f, Color(255, 255, 255), Color(255, 255, 255));
+	// BRDF Sphere
+	sph_arr[2] = Sphere_Data{ glm::vec3(25, -1, -1.5f), 1.1f };
+	sph_mats[2] = nullptr;
 
-	sph_arr[3] = Sphere_Data{ glm::vec3(25, -1, -1.5f), 1.1f };
-	sph_mats[3] = nullptr;
+	// Volumetric Sphere
+	sph_arr[3] = Sphere_Data{ glm::vec3(25, -1, 5.9f), 1.1f };
+	sph_mats[3] = new Phong(0.f, 0.f, 0.f, 0.f, 0.f, 1.f, 1.f, 0.1f, Color(255, 255, 255), Color(255, 255, 255));
 
 	tri_arr[0] = Triangle_Data{ glm::vec3(32, 0.44, 8.6), glm::vec3(-32, 0.44, 8.6), glm::vec3(32, 0.44, -8.6) };
-	tri_mats[0] = (BSDF*)new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
+	tri_mats[0] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.1f, 1.1f, Color(187, 187, 61), Color(173, 1, 16));
 
 	tri_arr[1] = Triangle_Data{ glm::vec3(-32, 0.44, -8.6), glm::vec3(32, 0.44, -8.6), glm::vec3(-32, 0.44, 8.6) };
-	tri_mats[1] = (BSDF*)new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.f, 1.f, Color(187, 187, 61), Color(173, 1, 16));
+	tri_mats[1] = new CheckerBoard(glm::vec3(32.f, 0.44, 8.6), 1.1f, 1.1f, Color(187, 187, 61), Color(173, 1, 16));
 
 	// Apply world to camera transform
 	for (int i = 0; i < sph_count; ++i) { sph_arr[i] = Sphere::transform(testCam.worldToCamera, sph_arr[i]);   }
@@ -355,7 +277,7 @@ int main() {
 		}
 	}
 
-	img.save("test.png");
+	img.save("output.png");
 
 	return EXIT_SUCCESS;
 }
